@@ -1,19 +1,28 @@
--- npc_enchanter_600002.lua
 local NPC_ID = 600002
 
 -- Equipment slots
 local SLOT = { CHEST=4, WRIST=8, FEET=7, BACK=14, MAINHAND=15 }
 
--- DBC IDs: verify with `.enchant perm <id>` and adjust if needed
+-- Inventory types (for 1H/2H check)
+local INVTYPE = {
+  WEAPON         = 13,  -- 1H
+  ["2HWEAPON"]   = 17,  -- 2H
+  WEAPONMAINHAND = 21,  -- 1H MH-only
+  WEAPONOFFHAND  = 22,  -- 1H OH-only
+}
+
+-- One iteration of "best-guess" enchant IDs for TC 3.3.5a.
+-- If any don't apply, test with `.enchant perm <id>` and send me the working ID.
 local ENCHANTS = {
   WEAPON = {
-    { "Crusader",            1900, false, true  },
-    { "Lifestealing",         805, false, true  },
-    { "Fiery Weapon",         803, false, true  },
-    { "+15 Agility (1H)",    2564, false, true  },
-    { "+25 Agility (2H)",    1898, true,  false },
-    { "+30 Intellect (1H)",   723, false, true  },
-    { "+20 Spirit (1H)",      724, false, true  },
+    -- { name, enchantId, only2H }
+    { "Crusader",             1900, false },
+    { "Lifestealing",          805, false },
+    { "Fiery Weapon",          803, false },
+    { "+15 Agility (1H)",     2564, false },
+    { "+25 Agility (2H)",     1898, true  }, -- 2H-only
+    { "+30 Intellect (1H)",    943, false }, -- some cores use 943 for +30 Int 1H
+    { "+20 Spirit (1H)",       724, false },
   },
   ARMOR = {
     CHEST  = { { "+100 Health", 66 }, { "+4 All Stats", 1891 }, },
@@ -23,31 +32,15 @@ local ENCHANTS = {
   }
 }
 
--- Weapon type helpers
-local ITEM_CLASS_WEAPON = 2
-local WEAPON_SUBCLASS = { AXE_1H=0, AXE_2H=1, MACE_1H=4, MACE_2H=5, POLEARM=6, SWORD_1H=7, SWORD_2H=8, STAFF=10, FIST=13, DAGGER=15 }
-local INVTYPE = { WEAPON=13, ["2HWEAPON"]=17, WEAPONMAINHAND=21, WEAPONOFFHAND=22 }
-
--- Inventory types (DBC)
-local INVTYPE = {
-  WEAPON         = 13,  -- 1H
-  ["2HWEAPON"]   = 17,  -- 2H
-  WEAPONMAINHAND = 21,  -- 1H MH-only
-  WEAPONOFFHAND  = 22,  -- 1H OH-only
-}
-
-local function msg(p, t) p:SendNotification(t); p:SendBroadcastMessage("|cff00ff00[Enchanter]|r "..t) end
+local function msg(p, t)
+  p:SendNotification(t)
+  p:SendBroadcastMessage("|cff00ff00[Enchanter]|r "..t)
+end
 
 local function isTwoHandWeapon(item)
   if not item then return false end
   local inv = item:GetInventoryType()
   return inv == INVTYPE["2HWEAPON"]
-end
-
-local function isOneHandWeapon(item)
-  if not item then return false end
-  local inv = item:GetInventoryType()
-  return inv == INVTYPE.WEAPON or inv == INVTYPE.WEAPONMAINHAND or inv == INVTYPE.WEAPONOFFHAND
 end
 
 local function applyEnchantToSlot(player, slot, enchantId)
@@ -59,7 +52,7 @@ local function applyEnchantToSlot(player, slot, enchantId)
   return true
 end
 
--- intid map
+-- Gossip intids
 local I = {
   ROOT=1000, ENCHANTS=1100, WEAPON_MENU=1200, ARMOR_MENU=1300,
   ARMOR_CHEST=1310, ARMOR_BRACER=1320, ARMOR_BOOTS=1330, ARMOR_CLOAK=1340,
@@ -117,17 +110,23 @@ local function OnGossipSelect(event, player, creature, sender, intid, code)
   if intid == I.WEAPON_MENU then WeaponMenu(player, creature); return end
   if intid == I.ARMOR_MENU  then ArmorMenu(player, creature); return end
 
-  -- Weapon applies
+  -- Weapon selections
   if intid > I.WEAPON_MENU and intid < I.ARMOR_MENU then
     local idx = intid - I.WEAPON_MENU
     local opt = ENCHANTS.WEAPON[idx]
     if not opt then player:GossipComplete(); return end
-    local name, enchantId, needs2H, needs1H = table.unpack(opt)
+
+    local name, enchantId, only2H = opt[1], opt[2], opt[3]
     local mh = player:GetEquippedItemBySlot(SLOT.MAINHAND)
     if not mh then msg(player, "Equip a weapon in your main-hand first."); player:GossipComplete(); return end
-    if needs2H and not isTwoHandWeapon(mh) then msg(player, ("'%s' requires a two-handed weapon."):format(name)); player:GossipComplete(); return end
-    if needs1H and not isOneHandWeapon(mh) then msg(player, ("'%s' requires a one-handed weapon."):format(name)); player:GossipComplete(); return end
-    applyEnchantToSlot(player, SLOT.MAINHAND, enchantId); player:GossipComplete(); return
+
+    if only2H and not isTwoHandWeapon(mh) then
+      msg(player, ("'%s' requires a two-handed weapon."):format(name))
+      player:GossipComplete(); return
+    end
+
+    applyEnchantToSlot(player, SLOT.MAINHAND, enchantId)
+    player:GossipComplete(); return
   end
 
   -- Armor submenus
@@ -138,16 +137,24 @@ local function OnGossipSelect(event, player, creature, sender, intid, code)
 
   -- Armor applies
   if intid > I.ARMOR_CHEST and intid < I.ARMOR_BRACER then
-    local opt = ENCHANTS.ARMOR.CHEST[intid - I.ARMOR_CHEST]; if opt then applyEnchantToSlot(player, SLOT.CHEST, opt[2]) end; player:GossipComplete(); return
+    local opt = ENCHANTS.ARMOR.CHEST[intid - I.ARMOR_CHEST]
+    if opt then applyEnchantToSlot(player, SLOT.CHEST, opt[2]) end
+    player:GossipComplete(); return
   end
   if intid > I.ARMOR_BRACER and intid < I.ARMOR_BOOTS then
-    local opt = ENCHANTS.ARMOR.BRACER[intid - I.ARMOR_BRACER]; if opt then applyEnchantToSlot(player, SLOT.WRIST, opt[2]) end; player:GossipComplete(); return
+    local opt = ENCHANTS.ARMOR.BRACER[intid - I.ARMOR_BRACER]
+    if opt then applyEnchantToSlot(player, SLOT.WRIST, opt[2]) end
+    player:GossipComplete(); return
   end
   if intid > I.ARMOR_BOOTS and intid < I.ARMOR_CLOAK then
-    local opt = ENCHANTS.ARMOR.BOOTS[intid - I.ARMOR_BOOTS]; if opt then applyEnchantToSlot(player, SLOT.FEET, opt[2]) end; player:GossipComplete(); return
+    local opt = ENCHANTS.ARMOR.BOOTS[intid - I.ARMOR_BOOTS]
+    if opt then applyEnchantToSlot(player, SLOT.FEET, opt[2]) end
+    player:GossipComplete(); return
   end
   if intid > I.ARMOR_CLOAK and intid < I.ARMOR_CLOAK + 100 then
-    local opt = ENCHANTS.ARMOR.CLOAK[intid - I.ARMOR_CLOAK]; if opt then applyEnchantToSlot(player, SLOT.BACK, opt[2]) end; player:GossipComplete(); return
+    local opt = ENCHANTS.ARMOR.CLOAK[intid - I.ARMOR_CLOAK]
+    if opt then applyEnchantToSlot(player, SLOT.BACK, opt[2]) end
+    player:GossipComplete(); return
   end
 
   player:GossipComplete()
