@@ -28,29 +28,26 @@ local ITEM_CLASS_WEAPON = 2
 local WEAPON_SUBCLASS = { AXE_1H=0, AXE_2H=1, MACE_1H=4, MACE_2H=5, POLEARM=6, SWORD_1H=7, SWORD_2H=8, STAFF=10, FIST=13, DAGGER=15 }
 local INVTYPE = { WEAPON=13, ["2HWEAPON"]=17, WEAPONMAINHAND=21, WEAPONOFFHAND=22 }
 
+-- Inventory types (DBC)
+local INVTYPE = {
+  WEAPON         = 13,  -- 1H
+  ["2HWEAPON"]   = 17,  -- 2H
+  WEAPONMAINHAND = 21,  -- 1H MH-only
+  WEAPONOFFHAND  = 22,  -- 1H OH-only
+}
+
 local function msg(p, t) p:SendNotification(t); p:SendBroadcastMessage("|cff00ff00[Enchanter]|r "..t) end
 
 local function isTwoHandWeapon(item)
   if not item then return false end
-  local t = item:GetTemplate(); if not t then return false end
-  if t:GetInventoryType() == INVTYPE["2HWEAPON"] then return true end
-  if t:GetClass() ~= ITEM_CLASS_WEAPON then return false end
-  local s = t:GetSubClass()
-  return (s == WEAPON_SUBCLASS.AXE_2H or s == WEAPON_SUBCLASS.MACE_2H or
-          s == WEAPON_SUBCLASS.SWORD_2H or s == WEAPON_SUBCLASS.POLEARM or
-          s == WEAPON_SUBCLASS.STAFF)
+  local inv = item:GetInventoryType()
+  return inv == INVTYPE["2HWEAPON"]
 end
 
 local function isOneHandWeapon(item)
   if not item then return false end
-  local t = item:GetTemplate(); if not t then return false end
-  local inv = t:GetInventoryType()
-  if inv == INVTYPE.WEAPON or inv == INVTYPE.WEAPONMAINHAND or inv == INVTYPE.WEAPONOFFHAND then return true end
-  if t:GetClass() ~= ITEM_CLASS_WEAPON then return false end
-  local s = t:GetSubClass()
-  return (s == WEAPON_SUBCLASS.AXE_1H or s == WEAPON_SUBCLASS.MACE_1H or
-          s == WEAPON_SUBCLASS.SWORD_1H or s == WEAPON_SUBCLASS.DAGGER or
-          s == WEAPON_SUBCLASS.FIST)
+  local inv = item:GetInventoryType()
+  return inv == INVTYPE.WEAPON or inv == INVTYPE.WEAPONMAINHAND or inv == INVTYPE.WEAPONOFFHAND
 end
 
 local function applyEnchantToSlot(player, slot, enchantId)
