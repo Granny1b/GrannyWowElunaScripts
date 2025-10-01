@@ -11,7 +11,7 @@ Description:
 Drop into: lua_scripts/npc_enchanter_600001.lua
 ]]--
 
-local NPC_ID = 600001
+local NPC_ID = 600002
 
 -- Inventory slot constants (0-based, WotLK)
 local SLOT = {
